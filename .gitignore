@@ -1,0 +1,10 @@
+.vscode/
+**__pycache__
+outputs
+dentex_dataset
+unet_test
+unet_train
+seunet_test
+seunet_train
+transunet_test
+transunet_train
