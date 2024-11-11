@@ -75,26 +75,29 @@ class TransformedDataset(Dataset):
         flip: float = None,
         crop: float = None,
         rotate: list = None,
+        mean: list = None,
+        std: list = None,
     ):
         self.dataset = dataset
         self.flip = flip
         self.crop = crop
         self.rotate = rotate
+        self.mean = mean
+        self.std = std
 
     def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor]:
         image, mask = self.dataset[index]
-        image, mask = TransformedDataset.data_transform(image, mask, self.flip, self.crop, self.rotate)
+        image, mask = self.data_transform(image, mask)
         return image, mask
 
     def __len__(self) -> int:
         return len(self.dataset)
 
-    @staticmethod
     def data_transform(
-        image: Image.Image, mask: Image.Image = None, flip: float = None, crop: float = None, rotate: list = None
+        self, image: Image.Image, mask: Image.Image = None
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """
-        convert PIL Image to torch Tensor and do some augmentation
+        Convert PIL Image to torch Tensor and do some augmentation
         @param image: PIL Image
         @param mask: PIL Image
         @param flip: float, 0.0 ~ 1.0, probability of flip
@@ -111,33 +114,28 @@ class TransformedDataset(Dataset):
         dummy_mask = torch.from_numpy(np.array(dummy_mask)).long().unsqueeze(0)  # shape(1, 256, 256)
 
         # normalize
-        image = ttf.normalize(image, [0.458], [0.173])
-
-        # flip
-        if flip is not None and random.random() < flip:
-            image = ttf.hflip(image)
-            dummy_mask = ttf.hflip(dummy_mask)
-
-        # crop
-        if crop is not None and random.random() < crop:
-            size = random.randint(128, 225)
-            i, j, h, w = transforms.RandomCrop.get_params(image, output_size=(size, size))
-            image = ttf.crop(image, i, j, h, w)
-            dummy_mask = ttf.crop(dummy_mask, i, j, h, w)
-
-            # resize
-            image = ttf.resize(image, (256, 256), InterpolationMode.BILINEAR)
-            dummy_mask = ttf.resize(dummy_mask, (256, 256), InterpolationMode.NEAREST)
-
-        # rotate
-        if rotate is not None and random.random() < 0.1:
-            angle = random.randint(rotate[0], rotate[1])
-            image = ttf.rotate(image, angle)
-            dummy_mask = ttf.rotate(dummy_mask, angle)
+        image = ttf.normalize(image, self.mean, self.std)
 
         dummy_mask = dummy_mask.squeeze(0)
         return image, dummy_mask
 
+def calculate_mean_std(dataset_dir: str, json_file: str):
+    with open(json_file, "r") as f:
+        image_names = json.load(f)
+    
+    mean = 0.0
+    std = 0.0
+    num_images = len(image_names)
+
+    for image_name in image_names:
+        image = Image.open(os.path.join(dataset_dir, "xrays", image_name)).convert("L")
+        image = np.array(image) / 255.0
+        mean += image.mean()
+        std += image.std()
+
+    mean /= num_images
+    std /= num_images
+    return [mean], [std]
 
 def main(args):
     output_dir = args.output_dir
@@ -151,6 +149,7 @@ def main(args):
     is_parallel = args.is_parallel
 
     num_classes = args.num_classes
+    
     if args.model == "unet":
         model = UNet(in_channels=1, out_channels=num_classes + 1)
     else:
@@ -168,16 +167,23 @@ def main(args):
     logger.setLevel(logging.INFO)
     logger.info("Loading dataset...")
 
-    dataset_dir = args.dataset_dir
-    dataset = Preload(SegmentationDataset(dataset_dir))
-    logger.info("Loaded dataset!")
-    dataset = TransformedDataset(dataset, flip=0.1, crop=0.1, rotate=[-10, 10])
-    train_size = int(len(dataset) * args.train_ratio)
-    validation_size = len(dataset) - train_size
+    train_dataset_dir = args.train_dataset_dir
+    val_dataset_dir = args.val_dataset_dir
+    train_dataset = Preload(SegmentationDataset(train_dataset_dir))
+    val_dataset = Preload(SegmentationDataset(val_dataset_dir))
 
-    train_dataset, val_dataset = torch.utils.data.random_split(
-        dataset, [train_size, validation_size], generator=torch.Generator().manual_seed(args.seed)
-    )
+    logger.info("Loaded dataset!")
+
+    # # Calculate mean and std
+    # mean_train, std_train = calculate_mean_std(train_dataset_dir, os.path.join(train_dataset_dir, "image_names.json"))
+    # mean_val, std_val = calculate_mean_std(val_dataset_dir, os.path.join(val_dataset_dir, "image_names.json"))
+
+    # Use predefined mean and std
+    mean_train, std_train = [0.458], [0.173]
+    mean_val, std_val = [0.458], [0.173]
+
+    train_dataset = TransformedDataset(train_dataset, flip=0.1, crop=0.1, rotate=[-10, 10], mean=mean_train, std=std_train)
+    val_dataset = TransformedDataset(val_dataset, flip=0.1, crop=0.1, rotate=[-10, 10], mean=mean_val, std=std_val)
 
     batch_size = args.batch_size
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -275,12 +281,13 @@ def main(args):
 
 def get_argparser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset_dir", type=str)
+    parser.add_argument("--train_dataset_dir", type=str)
+    parser.add_argument("--val_dataset_dir", type=str)
     parser.add_argument("--cuda", type=bool, default=True)
     parser.add_argument("--is_parallel", type=bool, default=True)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-3)
-    parser.add_argument("--epochs", type=int, default=500)
+    parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output_dir", type=str)
     parser.add_argument("--resume", type=str, default=None, help="path to checkpoint")

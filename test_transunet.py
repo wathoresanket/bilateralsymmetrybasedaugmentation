@@ -214,6 +214,8 @@ def main(args):
     dice_loss_func = DiceLoss(config_vit.n_classes)
     ce_loss_func = CrossEntropyLoss()
 
+    dsc_values = []  # Initialize an empty list to store DSC values
+    
     logger.info(f"Start testing...")
 
     model.eval()
@@ -227,17 +229,24 @@ def main(args):
                 mask = mask.cuda()
 
             pred = model(image)
+
             loss_dice = dice_loss_func(pred, mask, softmax=True)
             loss_ce = ce_loss_func(pred, mask)
 
             test_loss_dice += loss_dice.item()
             test_loss_ce += loss_ce.item()
 
+            # Calculate DSC
+            dsc = 1 - loss_dice.item()  # DSC = 1 - Dice Loss
+            dsc_values.append(dsc)  # Append the DSC value to the list
+
         test_loss_dice /= len(test_loader)
         test_loss_ce /= len(test_loader)
         logger.info(f"Testing loss: {test_loss_dice}, {test_loss_ce}")
         logger.info(f"Testing Dice Loss: {test_loss_dice}")
         logger.info(f"Testing Cross Entropy Loss: {test_loss_ce}")
+
+    logger.info(f"DSC values for all images: {dsc_values}")  # Log the DSC values
 
     logger.info("Done!")
 
