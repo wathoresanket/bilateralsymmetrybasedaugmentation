@@ -1,46 +1,45 @@
-# Bilateral Symmetry-based Augmentation Method for Improved Tooth Segmentation in Panoramic X-rays
+# Bilateral Symmetry-based Augmentation for Improved Tooth Segmentation in Panoramic X-rays
 
-This project focuses on enhancing tooth segmentation in panoramic X-rays using a novel bilateral symmetry-based augmentation technique. The steps below outline the preparation, augmentation, and comprehensive analysis processes.
+This repository contains the code for a bilateral symmetry-based augmentation technique aimed at enhancing tooth segmentation accuracy in panoramic X-rays. Leveraging the inherent symmetry in these images, our method significantly expands the dataset size and improves the performance of deep learning models, including U-Net, SE U-Net, and TransUNet.
 
-## Prepare Segmentation Dataset
+Key improvements include:
+- An 8% increase in the Dice Similarity Coefficient (DSC), achieving 76.7% for TransUNet.
+- Superior performance over rigid transform-based and elastic grid-based augmentations, with an additional 5% DSC improvement on average.
 
-Run the `process...` functions in `process_dataset.py` to convert the dataset into quadrant and 32-class segmentation masks for segmentation models. The quadrant segmentation dataset can be generated from the original quadrant dataset, and the 32-class segmentation dataset can be generated from the original quadrant_enumeration dataset.
+---
 
-## Bilateral Symmetry-based Augmentation
+## Workflow
 
-We propose a novel method to expand the dataset to four times its original size.
+### 1. Prepare Segmentation Dataset
+Use `process_dataset.py` to generate:
+- **Quadrant Segmentation Masks** from the original quadrant dataset.
+- **32-Class Segmentation Masks** from the quadrant_enumeration dataset.
 
-### Steps
+### 2. Bilateral Symmetry-based Augmentation
+Expand the dataset fourfold by running `bilateral_symmetry_based_augmentation` to generate data in `dentex_dataset/segmentation/enumeration32_bilateral_symmetry_based_augmentation`.
 
-1. **Train SE U-Net for Quadrant Segmentation**
+### 3. Model Training on Augmented Dataset
+Train U-Net, SE U-Net, and TransUNet models on the augmented dataset.
 
-    ```sh
-    python train_unet.py \
-        --output_dir outputs/output_unet_quadrant_16 \
-        --dataset_dir dentex_dataset/segmentation/quadrant \
-        --num_classes 4 --model seunet --batch_size 16
-    ```
-
-2. **Generate Augmented Dataset**
-
-    Run `data_augmentation_all.py` to create a new dataset in `dentex_dataset/segmentation/enumeration32_augmentation_all`. This new dataset will have four times the images and masks compared to `dentex_dataset/segmentation/enumeration32`.
-
-3. **Train U-Net, SE U-Net, and TransUNet on the Augmented Dataset**
+---
 
 ## Comprehensive Analysis
 
-1. **Split the Dataset**
+1. **Dataset Splitting:**
+   Use `split_train_val_test.py` to divide the enumeration32 dataset into training (380), validation (127), and testing (127) sets, saved in `dentex_dataset/segmentation/enumeration32_train_val_test`.
 
-    Run `split_train_val_test.py` to split the enumeration32 segmentation dataset into train (380), validation (127), and test (127) sets. The split dataset will be saved in `dentex_dataset/segmentation/enumeration32_train_val_test`.
+2. **Generate Training Subsets:**
+   Run `split_train.py` to create training subsets (`train_80` to `train_380`) by incrementally adding images. These subsets are saved in the same directory.
 
-2. **Generate Training Sets**
+3. **Augmentation Comparisons:**
+   Create augmented datasets for each training subset with:
+   - **Bilateral Symmetry-based Augmentation:** `bilateral_symmetry_based_augmentation_train_range.py`
+   - **Rigid Transform-based Augmentation:** `rigid_transform_based_augmentation_train_range.py`
+   - **Elastic Grid-based Augmentation:** `elastic_grid_based_augmentation_train_range.py`
 
-    Split the train set into subsets starting from a random 80 images, adding 50 randomly to create the next set by running `split_train.py` in the `bilateral_symmetry_augmentation` folder. This will produce `train_80`, `train_130`, `train_180`, `train_230`, `train_280`, `train_330`, and `train_380`. These sets will be saved in the same directory.
-
-3. **Generate Augmented Data for Each Set**
-
-    Run `data_augmentation_train_range.py` to generate augmented data for each of these training sets. The augmented data will be saved in `dentex_dataset/segmentation/enumeration32_augmentation`.
-
-4. **Train and Test Segmentation Models on Each Set**
-
-    Run `training_32_{model}.sh` and `testing_32_{model}.sh` in the `train_test` folder to train U-Net, SE U-Net, and TransUNet on each of these sets and test on their best checkpoints.
+4. **Train and Test Models:**
+   Use `training_32_{model}.sh` and `testing_32_{model}.sh` scripts to train and evaluate U-Net, SE U-Net, and TransUNet models on the datasets with four augmentation methods:
+   - No augmentation
+   - Rigid transform-based augmentation
+   - Elastic deformation-based augmentation
+   - Bilateral symmetry-based augmentation
