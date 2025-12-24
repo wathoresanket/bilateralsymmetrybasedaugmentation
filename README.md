@@ -164,9 +164,9 @@ Models evaluated:
 - SE U-Net
 - TransUNet
 
-Example:
-
 ```bash
+bash training_testing_scripts/training_32_unet.sh
+bash training_testing_scripts/training_32_seunet.sh
 bash training_testing_scripts/training_32_transunet.sh
 ```
 
@@ -175,6 +175,8 @@ bash training_testing_scripts/training_32_transunet.sh
 ### 6.6 Model Evaluation
 
 ```bash
+bash training_testing_scripts/testing_32_unet.sh
+bash training_testing_scripts/testing_32_seunet.sh
 bash training_testing_scripts/testing_32_transunet.sh
 ```
 
@@ -190,9 +192,7 @@ The figures below (available in the `figures/` directory) present the **Dice Sim
 - Elastic grid-based augmentation
 - Bilateral symmetry-based augmentation (proposed)
 
-![U-Net Results](figures/unet_result.png)
-![SE U-Net Results](figures/seunet_result.png)
-![TransUNet Results](figures/transunet_result.png)
+![Results](figures/results.png)
 
 Across all three architectures and all training set sizes, the proposed **bilateral symmetry-based augmentation consistently yields the highest DSC values**, outperforming both rigid transform-based and elastic grid-based augmentation methods.
 
