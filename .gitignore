@@ -1,6 +1,40 @@
-.vscode/
-**__pycache__
-outputs
-dentex_dataset
-others
+# macOS
 .DS_Store
+
+# Editor
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Virtual environments
+venv/
+.env/
+.venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# PyTorch / model checkpoints
+*.pth
+*.pt
+*.ckpt
+
+# Logs and outputs
+outputs/
+*.log
+
+# Dataset (download from DENTEX website)
+dentex_dataset/
+
+# Misc local files
+others/
+project_guide.md

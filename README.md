@@ -1,168 +1,128 @@
 # Bilateral Symmetry-Based Data Augmentation for Tooth Segmentation in Panoramic X-rays
 
-This repository contains the **official implementation** of the method proposed in the paper:
-
-**Bilateral symmetry-based augmentation method for improved tooth segmentation in panoramic X-rays**  
-Sanket Wathore, Subrahmanyam Gorthi  
-*Pattern Recognition Letters*, 2025  
-
-**Paper:** https://www.sciencedirect.com/science/article/abs/pii/S0167865524003362
-
-This codebase enables full **reproducibility of the data preparation, augmentation, training, and evaluation pipeline** reported in the paper.
+**Paper:** Bilateral symmetry-based augmentation method for improved tooth segmentation in panoramic X-rays  
+**Authors:** Sanket Wathore, Subrahmanyam Gorthi  
+**Published in:** Pattern Recognition Letters, Elsevier, 2025  
+**Link:** https://www.sciencedirect.com/science/article/abs/pii/S0167865524003362
 
 ---
 
-## 1. Problem Overview
+## Overview
 
-Accurate tooth segmentation in panoramic dental X-rays is a challenging **32-class semantic segmentation problem** due to:
+Segmenting individual teeth in panoramic dental X-rays is a genuinely hard problem. Each image contains up to 32 teeth that need to be identified and labeled separately, and the available annotated datasets are small because creating annotations is expensive and time-consuming.
 
-- high anatomical variability across patients,
-- limited availability of pixel-level annotations,
-- large number of labels per image, and
-- structural similarity between adjacent teeth.
+This project introduces a data augmentation strategy that takes advantage of a natural property of panoramic X-rays: the left and right halves of the dental arch are approximate mirror images of each other. By exploiting this bilateral symmetry, we can generate new, anatomically valid training samples from existing ones, effectively quadrupling the training dataset without collecting any new annotations.
 
-While collecting additional annotations is expensive and time-consuming, panoramic X-rays exhibit a strong **approximate bilateral symmetry** across the vertical midline of the dental arch. This repository leverages this domain-specific property to improve learning efficiency and segmentation accuracy.
+The method is evaluated on three segmentation models (U-Net, SE U-Net, TransUNet) and consistently improves performance across all of them, with the biggest gains when the training set is small.
 
 ---
 
-## 2. Proposed Method: Bilateral Symmetry-Based Augmentation
+## How the Augmentation Works
 
-The proposed augmentation strategy explicitly exploits the **bilateral symmetry of panoramic dental anatomy** to generate anatomically valid synthetic samples.
+The core idea is to split a panoramic X-ray along its vertical midline and flip one or both halves to produce new images. This yields three new samples per original image, giving a 4x increase in training data.
 
-### Key Idea
+In practice, getting this right requires a few careful steps:
 
-Instead of applying generic random transformations, the method:
+1. Run a quadrant segmentation model to locate the left and right sides of the dental arch precisely.
+2. Split the image and its annotation mask along the midline.
+3. Generate three augmented versions: flip only the left side, flip only the right side, and flip both sides.
+4. Re-enumerate tooth labels after each flip to keep FDI numbering consistent (teeth 1 to 32).
 
-1. Learns quadrant-wise structure using a deep learning-based quadrant segmentation model.
-2. Separates the image into left and right regions with respect to the symmetry axis.
-3. Generates three synthetic samples per image by:
-   - flipping only the right side,
-   - flipping only the left side,
-   - flipping both sides simultaneously.
-4. Applies **careful filtering and tooth re-enumeration** to ensure label consistency (1–32) after flipping.
-
-This results in a **4× increase in effective training data** while preserving anatomical realism.
-
-The complete augmentation pipeline is illustrated in the paper (Fig. 2–4).
+The re-enumeration step is what makes this work properly. A naive horizontal flip would scramble the tooth labels and produce incorrect ground truth masks, so this step is not optional.
 
 ---
 
-## 3. Dataset
-
-### 3.1 Source
+## Dataset
 
 **DENTEX 2023 Tooth Enumeration Dataset**  
 https://dentex.grand-challenge.org/data/
 
-### 3.2 Description
+- 634 panoramic X-rays with pixel-level tooth annotations
+- 32 individual tooth classes, using unified labels 1 to 32
+- Split used in all experiments: 380 train / 127 val / 127 test
 
-- 634 panoramic dental X-rays
-- Pixel-level annotations for 32 individual teeth
-- Original FDI numbering converted to unified labels (1–32)
-- Data split used in all experiments:
-  - Training: 380 images
-  - Validation: 127 images
-  - Testing: 127 images
-
-**Note:**  
-The dataset is not distributed with this repository and must be obtained from the official DENTEX website.
+The dataset is not included in this repository. Download it from the official DENTEX website before running any scripts.
 
 ---
 
-## 4. Repository Structure
+## Repository Structure
 
 ```
 .
-├── dentex_dataset/ # DENTEX dataset and generated segmentation masks
-├── figures/ # Quantitative result plots
-├── models/ # Model definitions
-├── outputs/ # Training logs and Checkpoints
-├── training_testing_scripts/ # Training and testing scripts
-│
-├── bilateral_symmetry_based_augmentation.py
-├── elastic_grid_based_augmentation_train_range.py
-├── rigid_transform_based_augmentation_train_range.py
-├── process_dataset.py
-├── split_train_val_test.py
-├── split_train.py
-│
-├── requirements.txt
-└── README.md
+├── bilateral_symmetry_based_augmentation.py          # Augments the full training set (proposed method)
+├── bilateral_symmetry_based_augmentation_train_range.py  # Same, across multiple dataset sizes
+├── elastic_grid_based_augmentation_train_range.py    # Elastic grid baseline augmentation
+├── rigid_transform_based_augmentation_train_range.py # Rigid transform baseline augmentation
+├── process_dataset.py                                # Converts raw DENTEX data into quadrant and tooth masks
+├── split_train_val_test.py                           # Creates the train/val/test split
+├── split_train.py                                    # Creates incremental training subsets
+├── train_unet.py                                     # Training script for U-Net
+├── train_transunet.py                                # Training script for TransUNet
+├── test_unet.py                                      # Evaluation script for U-Net
+├── test_transunet.py                                 # Evaluation script for TransUNet
+├── models/                                           # Model architecture definitions
+│   ├── unet/
+│   └── transunet/
+├── training_testing_scripts/                         # Shell scripts for running full experiments
+├── figures/                                          # Result plots from the paper
+└── requirements.txt
 ```
 
 ---
 
-## 5. Environment Setup
+## Setup
 
-Python **3.8 or later** is recommended.
-
-Install dependencies using:
+Python 3.8 or later is required. Install all dependencies with:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Tested with PyTorch 1.12.1 (CUDA 11.3). GPU support is recommended for training but not required for data augmentation.
+Tested with PyTorch 1.12.1 and CUDA 11.3. A GPU is strongly recommended for training. The augmentation and preprocessing scripts can run on CPU.
 
 ---
 
-## 6. Reproducible Experimental Pipeline
+## Running the Full Pipeline
 
-### 6.1 Dataset Preparation
+### Step 1: Prepare the dataset
 
-```bash
-python dataset_processing/process_dataset.py
-```
-
-Generates quadrant masks and 32-class tooth enumeration masks.
-
----
-
-### 6.2 Train / Validation / Test Split
+Convert raw DENTEX annotations into quadrant masks and 32-class tooth segmentation masks:
 
 ```bash
-python dataset_processing/split_train_val_test.py
+python process_dataset.py
 ```
 
-Creates a 60:20:20 split consistent with the paper.
+### Step 2: Create the data split
 
----
-
-### 6.3 Incremental Training Subsets
+Divide the dataset into train, validation, and test sets (60/20/20 split):
 
 ```bash
-python dataset_processing/split_train.py
+python split_train_val_test.py
 ```
 
-Creates training subsets of size:  
-80, 130, 180, 230, 280, 330, and 380 images.
+### Step 3: Create incremental training subsets
 
----
-
-### 6.4 Data Augmentation
-
-#### Bilateral Symmetry-Based Augmentation (Proposed)
+This creates training subsets of increasing size (80, 130, 180, 230, 280, 330, 380 images) so you can evaluate how performance scales with the amount of training data:
 
 ```bash
-python augmentation/bilateral_symmetry_based_augmentation.py
-python augmentation/bilateral_symmetry_based_augmentation_train_range.py
+python split_train.py
 ```
 
-#### Baseline Augmentations
+### Step 4: Run augmentation
 
+**Proposed method (bilateral symmetry):**
 ```bash
-python augmentation/rigid_transform_based_augmentation_train_range.py
-python augmentation/elastic_grid_based_augmentation_train_range.py
+python bilateral_symmetry_based_augmentation.py
+python bilateral_symmetry_based_augmentation_train_range.py
 ```
 
----
+**Baseline augmentation methods (for comparison):**
+```bash
+python rigid_transform_based_augmentation_train_range.py
+python elastic_grid_based_augmentation_train_range.py
+```
 
-### 6.5 Model Training
-
-Models evaluated:
-- U-Net
-- SE U-Net
-- TransUNet
+### Step 5: Train models
 
 ```bash
 bash training_testing_scripts/training_32_unet.sh
@@ -170,9 +130,7 @@ bash training_testing_scripts/training_32_seunet.sh
 bash training_testing_scripts/training_32_transunet.sh
 ```
 
----
-
-### 6.6 Model Evaluation
+### Step 6: Evaluate models
 
 ```bash
 bash training_testing_scripts/testing_32_unet.sh
@@ -180,46 +138,28 @@ bash training_testing_scripts/testing_32_seunet.sh
 bash training_testing_scripts/testing_32_transunet.sh
 ```
 
-Metric: **Dice Similarity Coefficient (DSC)**
+The evaluation metric used throughout is the **Dice Similarity Coefficient (DSC)**.
 
 ---
 
-## 7. Quantitative Results
+## Results
 
-The figures below (available in the `figures/` directory) present the **Dice Similarity Coefficient (DSC)** achieved by U-Net, SE U-Net, and TransUNet models across increasing training dataset sizes (80 to 380 images) under four data augmentation strategies:
-- No augmentation
-- Rigid transform-based augmentation
-- Elastic grid-based augmentation
-- Bilateral symmetry-based augmentation (proposed)
+The plot below shows DSC across all three models and all training set sizes, comparing bilateral symmetry augmentation against rigid and elastic baselines and no augmentation.
 
 ![Results](figures/results.png)
 
-Across all three architectures and all training set sizes, the proposed **bilateral symmetry-based augmentation consistently yields the highest DSC values**, outperforming both rigid transform-based and elastic grid-based augmentation methods.
+The proposed method outperforms all baselines across every model and dataset size combination. Some key numbers:
 
-As reported in the paper, the improvement is particularly significant in **low-data regimes**, demonstrating the effectiveness of the proposed method when annotated data is limited. For a training set of 80 images, the average DSC improves from:
-- **0.6288 to 0.6696** for U-Net,
-- **0.6379 to 0.6989** for SE U-Net, and
-- **0.6849 to 0.7669** for TransUNet,
+- At 80 training images, DSC improves by roughly 4% for U-Net, 6% for SE U-Net, and 8% for TransUNet.
+- Peak DSC with bilateral symmetry augmentation: **0.7660** (U-Net), **0.7721** (SE U-Net), **0.8202** (TransUNet).
+- Compared to rigid and elastic baselines specifically, the improvement is up to 5% in average DSC.
+- Improvements are statistically significant across all models (paired t-test, p < 10^-44).
 
-corresponding to approximate gains of **4%, 6%, and 8%**, respectively.
-
-With increasing training data, the bilateral symmetry-based augmentation continues to provide consistent performance gains, achieving peak DSC values of **0.7660** (U-Net), **0.7721** (SE U-Net), and **0.8202** (TransUNet). Statistical analysis using paired t-tests confirms that these improvements are **highly significant** (*p* < 10⁻⁴⁴), validating the robustness and effectiveness of the proposed augmentation strategy.
-
+The gains are largest in low-data regimes, which is exactly where augmentation matters most.
 
 ---
 
-## 8. Key Observations
-
-- The proposed augmentation method consistently outperforms generic geometric augmentations.
-- Performance gains are largest when training data is limited.
-- Improvements are statistically significant.
-- The method is architecture-agnostic and benefits CNN and Transformer-based models.
-
----
-
-## 9. Citation
-
-If you use this repository, please cite:
+## Citation
 
 ```bibtex
 @article{wathore2025bilateral,
@@ -233,7 +173,7 @@ If you use this repository, please cite:
 
 ---
 
-## 10. Contact
+## Contact
 
 Sanket Wathore  
 Department of Electrical Engineering  
